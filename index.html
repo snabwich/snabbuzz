@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SnabBuzz – Your Buzz, Delivered</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Space+Grotesk:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        :root{
+            --bg:#0a0a0f;--fg:#f0f0f5;--muted:#8888aa;--accent:#00ff88;
+            --card:rgba(255,255,255,0.04);--border:rgba(255,255,255,0.08);
+            --blue:#4488ff;--guava:#ff6b9d;--berry:#ff3366;--coffee:#d4a574;
+        }
+        html{scroll-behavior:smooth}
+        body{background:var(--bg);color:var(--fg);font-family:'Space Grotesk',sans-serif;overflow-x:hidden}
+        #canvas-container{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0}
+        #canvas-container canvas{display:block}
+        .overlay{position:relative;z-index:10;pointer-events:none}
+        .overlay *{pointer-events:auto}
+        .overlay .hero-empty{pointer-events:none}
+
+        /* Header */
+        .header{position:fixed;top:0;left:0;right:0;padding:1.2rem 2rem;display:flex;justify-content:space-between;align-items:center;z-index:100;background:linear-gradient(to bottom,rgba(10,10,15,0.9),transparent)}
+        .brand{font-family:'Playfair Display',serif;font-size:1.6rem;font-weight:900;letter-spacing:-0.02em;color:var(--fg)}
+        .brand span{color:var(--accent);position:relative;display:inline-block;overflow:hidden}
+        .brand span::after{content:'';position:absolute;top:0;left:-100%;width:60%;height:100%;background:linear-gradient(90deg,transparent,rgba(0,255,136,0.25),transparent);animation:shimmer 4s infinite}
+        @keyframes shimmer{0%{left:-100%}50%,100%{left:150%}}
+        .nav-links{display:flex;gap:2rem;list-style:none}
+        .nav-links a{color:var(--muted);text-decoration:none;font-size:0.8rem;font-weight:500;letter-spacing:0.15em;text-transform:uppercase;transition:color 0.3s}
+        .nav-links a:hover{color:var(--accent)}
+
+        /* Hero */
+        .hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:2rem;position:relative}
+        .hero-tagline{font-size:0.8rem;letter-spacing:0.35em;text-transform:uppercase;color:var(--accent);margin-bottom:1.2rem;opacity:0;animation:fadeUp 1s ease 0.3s forwards}
+        .hero-title{font-family:'Playfair Display',serif;font-size:clamp(3.5rem,10vw,7rem);font-weight:900;line-height:0.95;margin-bottom:1.5rem;opacity:0;animation:fadeUp 1s ease 0.5s forwards;background:linear-gradient(135deg,var(--fg) 60%,var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+        .hero-subtitle{font-size:clamp(1rem,2.5vw,1.25rem);color:var(--muted);max-width:480px;margin-bottom:2.5rem;line-height:1.7;opacity:0;animation:fadeUp 1s ease 0.7s forwards}
+        .hero-cta{display:inline-flex;align-items:center;gap:0.75rem;padding:1rem 2.5rem;background:var(--accent);color:var(--bg);font-weight:700;font-size:0.85rem;letter-spacing:0.12em;text-transform:uppercase;border:none;border-radius:100px;cursor:pointer;transition:all 0.3s;text-decoration:none;opacity:0;animation:fadeUp 1s ease 0.9s forwards;font-family:'Space Grotesk',sans-serif}
+        .hero-cta:hover{transform:translateY(-3px);box-shadow:0 12px 40px rgba(0,255,136,0.35)}
+        .scroll-hint{position:absolute;bottom:2rem;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:0.5rem;color:var(--muted);font-size:0.7rem;letter-spacing:0.2em;text-transform:uppercase;opacity:0;animation:fadeUp 1s ease 1.3s forwards}
+        .scroll-hint i{animation:bounce 2s infinite}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(25px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(6px)}}
+
+        /* Menu */
+        .menu-section{padding:6rem 2rem 4rem;position:relative;background:linear-gradient(to bottom,transparent 0%,rgba(10,10,15,0.92) 8%,rgba(10,10,15,0.97) 100%)}
+        .section-label{text-align:center;font-size:0.75rem;letter-spacing:0.35em;text-transform:uppercase;color:var(--accent);margin-bottom:0.75rem}
+        .section-title{text-align:center;font-family:'Playfair Display',serif;font-size:clamp(2rem,5vw,3.2rem);font-weight:900;margin-bottom:3.5rem}
+        .cocktail-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1.25rem;max-width:1100px;margin:0 auto}
+        .cocktail-card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:2rem 1.5rem;position:relative;overflow:hidden;transition:all 0.4s cubic-bezier(0.16,1,0.3,1);cursor:pointer;opacity:0;transform:translateY(30px)}
+        .cocktail-card.visible{opacity:1;transform:translateY(0)}
+        .cocktail-card::before{content:'';position:absolute;top:0;left:0;width:100%;height:3px;background:var(--card-color,var(--accent))}
+        .cocktail-card::after{content:'';position:absolute;top:0;left:0;width:100%;height:100%;background:radial-gradient(circle at 50% 0%,color-mix(in srgb,var(--card-color,var(--accent)) 8%,transparent),transparent 70%);opacity:0;transition:opacity 0.4s}
+        .cocktail-card:hover{transform:translateY(-10px) scale(1.02);border-color:color-mix(in srgb,var(--card-color,var(--accent)) 40%,transparent);box-shadow:0 24px 60px rgba(0,0,0,0.5)}
+        .cocktail-card:hover::after{opacity:1}
+        .cocktail-icon{width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;margin-bottom:1.5rem;background:color-mix(in srgb,var(--card-color,var(--accent)) 12%,transparent);color:var(--card-color,var(--accent))}
+        .cocktail-name{font-family:'Playfair Display',serif;font-size:1.35rem;font-weight:700;margin-bottom:0.4rem}
+        .cocktail-ingredients{color:var(--muted);font-size:0.85rem;margin-bottom:1.5rem;line-height:1.6}
+        .cocktail-price{font-size:1.4rem;font-weight:700;color:var(--card-color,var(--accent))}
+        .cocktail-order-sm{display:inline-flex;align-items:center;gap:0.4rem;margin-top:1rem;padding:0.5rem 1.2rem;background:color-mix(in srgb,var(--card-color,var(--accent)) 15%,transparent);border:1px solid color-mix(in srgb,var(--card-color,var(--accent)) 25%,transparent);border-radius:100px;color:var(--card-color,var(--accent));font-size:0.75rem;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;transition:all 0.3s;font-family:'Space Grotesk',sans-serif}
+        .cocktail-order-sm:hover{background:var(--card-color,var(--accent));color:var(--bg)}
+
+        /* CTA */
+        .cta-section{padding:5rem 2rem;text-align:center;background:rgba(10,10,15,0.98)}
+        .cta-card{max-width:580px;margin:0 auto;padding:3rem;background:linear-gradient(135deg,rgba(0,255,136,0.06),rgba(0,255,136,0.01));border:1px solid rgba(0,255,136,0.15);border-radius:28px;position:relative;overflow:hidden}
+        .cta-card::before{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:conic-gradient(from 0deg,transparent,rgba(0,255,136,0.03),transparent,rgba(0,255,136,0.03),transparent);animation:rotateBg 20s linear infinite}
+        @keyframes rotateBg{to{transform:rotate(360deg)}}
+        .cta-inner{position:relative;z-index:1}
+        .cta-title{font-family:'Playfair Display',serif;font-size:2rem;font-weight:900;margin-bottom:0.5rem}
+        .cta-sub{color:var(--muted);margin-bottom:2rem;font-size:0.95rem}
+        .cta-phone{font-size:clamp(1.8rem,4vw,2.6rem);font-weight:700;margin-bottom:2rem}
+        .cta-phone a{color:var(--accent);text-decoration:none;transition:text-shadow 0.3s}
+        .cta-phone a:hover{text-shadow:0 0 30px rgba(0,255,136,0.4)}
+        .cta-btn{display:inline-flex;align-items:center;gap:0.6rem;padding:1rem 2.5rem;background:var(--accent);color:var(--bg);font-weight:700;font-size:0.85rem;letter-spacing:0.1em;text-transform:uppercase;border:none;border-radius:100px;cursor:pointer;transition:all 0.3s;font-family:'Space Grotesk',sans-serif}
+        .cta-btn:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(0,255,136,0.35)}
+        .cta-hashtags{display:flex;flex-wrap:wrap;justify-content:center;gap:0.6rem;margin-top:2rem}
+        .hashtag{padding:0.35rem 0.9rem;background:var(--card);border:1px solid var(--border);border-radius:100px;font-size:0.75rem;color:var(--muted)}
+
+        /* Footer */
+        .footer{padding:2rem;text-align:center;color:var(--muted);font-size:0.75rem;background:rgba(10,10,15,0.99);border-top:1px solid var(--border)}
+
+        /* Toast */
+        .toast{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%) translateY(100px);padding:1rem 2rem;background:rgba(0,255,136,0.15);border:1px solid rgba(0,255,136,0.3);backdrop-filter:blur(12px);border-radius:14px;color:var(--accent);font-size:0.9rem;font-weight:500;z-index:300;transition:transform 0.4s cubic-bezier(0.16,1,0.3,1);pointer-events:none;white-space:nowrap}
+        .toast.show{transform:translateX(-50%) translateY(0)}
+
+        /* Detail Panel */
+        .detail-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);z-index:190;opacity:0;pointer-events:none;transition:opacity 0.3s}
+        .detail-overlay.active{opacity:1;pointer-events:auto}
+        .detail-panel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(0.9);background:rgba(15,15,25,0.96);backdrop-filter:blur(24px);border:1px solid var(--border);border-radius:24px;padding:2.5rem;z-index:200;opacity:0;pointer-events:none;transition:all 0.4s cubic-bezier(0.16,1,0.3,1);max-width:380px;width:90%}
+        .detail-panel.active{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
+        .detail-close{position:absolute;top:1rem;right:1rem;width:36px;height:36px;border-radius:50%;border:1px solid var(--border);background:transparent;color:var(--fg);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1rem;transition:all 0.3s}
+        .detail-close:hover{background:rgba(255,255,255,0.1)}
+        .detail-bar{width:50px;height:3px;border-radius:2px;margin-bottom:1.5rem}
+        .detail-name{font-family:'Playfair Display',serif;font-size:2rem;font-weight:900;margin-bottom:0.4rem}
+        .detail-ingredients{color:var(--muted);font-size:0.95rem;margin-bottom:1.5rem}
+        .detail-price{font-size:2rem;font-weight:700;margin-bottom:2rem}
+        .detail-order-btn{display:inline-flex;align-items:center;gap:0.5rem;padding:0.9rem 2rem;background:var(--accent);color:var(--bg);font-weight:700;font-size:0.8rem;letter-spacing:0.1em;text-transform:uppercase;border:none;border-radius:100px;cursor:pointer;transition:all 0.3s;font-family:'Space Grotesk',sans-serif}
+        .detail-order-btn:hover{box-shadow:0 10px 30px rgba(0,255,136,0.3)}
+
+        /* Interact hint */
+        .interact-hint{position:fixed;bottom:2rem;right:2rem;padding:0.5rem 1rem;background:var(--card);border:1px solid var(--border);border-radius:100px;font-size:0.7rem;color:var(--muted);z-index:50;display:flex;align-items:center;gap:0.5rem;opacity:0;animation:fadeUp 1s ease 2.5s forwards;pointer-events:none}
+
+        @media(max-width:900px){
+            .cocktail-grid{grid-template-columns:repeat(2,1fr)}
+        }
+        @media(max-width:600px){
+            .nav-links{display:none}
+            .header{padding:1rem}
+            .brand{font-size:1.3rem}
+            .cocktail-grid{grid-template-columns:1fr 1fr;gap:0.75rem}
+            .cocktail-card{padding:1.25rem}
+            .cta-card{padding:2rem}
+        }
+        @media(max-width:400px){
+            .cocktail-grid{grid-template-columns:1fr}
+        }
+        @media(prefers-reduced-motion:reduce){
+            *{animation-duration:0.01ms!important;transition-duration:0.01ms!important}
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+
+    <div class="overlay">
+        <header class="header">
+            <div class="brand">Snab<span>Buzz</span></div>
+            <ul class="nav-links">
+                <li><a href="#menu">Menu</a></li>
+                <li><a href="#order">Order</a></li>
+            </ul>
+        </header>
+
+        <section class="hero" id="hero">
+            <p class="hero-tagline">Your Buzz, Delivered</p>
+            <h1 class="hero-title">SnabBuzz</h1>
+            <p class="hero-subtitle">Signature cocktail creations crafted for your moments. Delivered straight to your door.</p>
+            <a href="#menu" class="hero-cta">
+                <i class="fas fa-glass-martini-alt"></i>
+                Explore Creations
+            </a>
+            <div class="scroll-hint">
+                <span>Scroll to explore</span>
+                <i class="fas fa-chevron-down"></i>
+            </div>
+        </section>
+
+        <section class="menu-section" id="menu">
+            <p class="section-label">Signature Creations</p>
+            <h2 class="section-title">Choose Your Buzz</h2>
+            <div class="cocktail-grid" id="cocktail-grid"></div>
+        </section>
+
+        <section class="cta-section" id="order">
+            <div class="cta-card">
+                <div class="cta-inner">
+                    <p class="section-label">Order Now</p>
+                    <h2 class="cta-title">Ready for Your Buzz?</h2>
+                    <p class="cta-sub">Call or WhatsApp to get your cocktail delivered</p>
+                    <div class="cta-phone"><a href="tel:+919980115255">+91 99801 15255</a></div>
+                    <button class="cta-btn" id="cta-order">
+                        <i class="fab fa-whatsapp"></i>
+                        Order via WhatsApp
+                    </button>
+                    <div class="cta-hashtags">
+                        <span class="hashtag">#SnabBuzz</span>
+                        <span class="hashtag">#YourBuzzDelivered</span>
+                        <span class="hashtag">#CocktailAtHome</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <footer class="footer">
+            SnabBuzz – Your Buzz, Delivered. Drink responsibly. Must be of legal drinking age.
+        </footer>
+    </div>
+
+    <div class="interact-hint">
+        <i class="fas fa-hand-pointer"></i>
+        Drag to explore 3D
+    </div>
+
+    <div class="detail-overlay" id="detail-overlay"></div>
+    <div class="detail-panel" id="detail-panel">
+        <button class="detail-close" id="detail-close"><i class="fas fa-times"></i></button>
+        <div class="detail-bar" id="detail-bar"></div>
+        <h3 class="detail-name" id="detail-name"></h3>
+        <p class="detail-ingredients" id="detail-ingredients"></p>
+        <div class="detail-price" id="detail-price"></div>
+        <button class="detail-order-btn" id="detail-order-btn">
+            <i class="fab fa-whatsapp"></i>
+            Order Now
+        </button>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        /* ========== Cocktail Data ========== */
+        const cocktailsData = [
+            { name:'BlueBuzz', ingredients:'Vodka + Blueberry', price:'₹199', color:'#4488ff', hex:0x4488ff, icon:'fa-martini-glass', posX:-2.4 },
+            { name:'GuavaBuzz', ingredients:'Vodka + Guava Chill', price:'₹199', color:'#ff6b9d', hex:0xff6b9d, icon:'fa-martini-glass-citrus', posX:-0.8 },
+            { name:'BerryBuzz', ingredients:'Vodka + Strawberry', price:'₹199', color:'#ff3366', hex:0xff3366, icon:'fa-whiskey-glass', posX:0.8 },
+            { name:'Buzzccino', ingredients:'Baileys + Coffee', price:'₹249', color:'#d4a574', hex:0xd4a574, icon:'fa-mug-hot', posX:2.4 },
+        ];
+
+        /* ========== Generate Cards ========== */
+        const grid = document.getElementById('cocktail-grid');
+        cocktailsData.forEach((c, i) => {
+            const card = document.createElement('div');
+            card.className = 'cocktail-card';
+            card.style.setProperty('--card-color', c.color);
+            card.dataset.index = i;
+            card.innerHTML = `
+                <div class="cocktail-icon"><i class="fas ${c.icon}"></i></div>
+                <h3 class="cocktail-name">${c.name}</h3>
+                <p class="cocktail-ingredients">${c.ingredients}</p>
+                <div class="cocktail-price">${c.price}</div>
+                <button class="cocktail-order-sm" data-index="${i}"><i class="fab fa-whatsapp"></i> Order</button>
+            `;
+            grid.appendChild(card);
+        });
+
+        /* ========== Scroll Reveal Cards ========== */
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(e => {
+                if (e.isIntersecting) {
+                    const cards = document.querySelectorAll('.cocktail-card');
+                    cards.forEach((card, i) => {
+                        setTimeout(() => card.classList.add('visible'), i * 120);
+                    });
+                    observer.unobserve(e.target);
+                }
+            });
+        }, { threshold: 0.2 });
+        observer.observe(grid);
+
+        /* ========== Three.js Scene ========== */
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0a0f);
+        scene.fog = new THREE.FogExp2(0x0a0a0f, 0.06);
+
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 1.8, 6);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.0;
+        container.appendChild(renderer.domElement);
+
+        /* Controls */
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.enablePan = false;
+        controls.minDistance = 3.5;
+        controls.maxDistance = 9;
+        controls.maxPolarAngle = Math.PI * 0.55;
+        controls.minPolarAngle = Math.PI * 0.15;
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.4;
+        controls.target.set(0, 0.3, 0);
+
+        /* Lights */
+        const ambientLight = new THREE.AmbientLight(0x334455, 0.6);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffeedd, 0.5);
+        dirLight.position.set(5, 8, 5);
+        scene.add(dirLight);
+
+        const rimLight = new THREE.DirectionalLight(0x00ff88, 0.15);
+        rimLight.position.set(-5, 3, -5);
+        scene.add(rimLight);
+
+        /* ========== Create Cocktail Glass ========== */
+        function createCocktailGlass(data, index) {
+            const group = new THREE.Group();
+            const col = data.hex;
+
+            /* Glass Bowl - LatheGeometry for elegant curve */
+            const bowlPts = [];
+            const bowlSegs = 24;
+            for (let i = 0; i <= bowlSegs; i++) {
+                const t = i / bowlSegs;
+                const y = t * 0.36;
+                const r = Math.max(0.001, 0.03 + Math.pow(t, 0.55) * 0.38);
+                bowlPts.push(new THREE.Vector2(r, y));
+            }
+            const bowlGeo = new THREE.LatheGeometry(bowlPts, 48);
+            const glassMat = new THREE.MeshPhysicalMaterial({
+                color: 0xeeeeff,
+                transparent: true,
+                opacity: 0.18,
+                roughness: 0.05,
+                metalness: 0.0,
+                side: THREE.DoubleSide,
+                clearcoat: 1.0,
+                clearcoatRoughness: 0.05,
+            });
+            const bowl = new THREE.Mesh(bowlGeo, glassMat);
+            bowl.position.y = -0.15;
+            group.add(bowl);
+
+            /* Rim ring */
+            const rimGeo = new THREE.TorusGeometry(0.41, 0.006, 8, 48);
+            const rimMat = new THREE.MeshStandardMaterial({ color: 0xccccdd, roughness: 0.15, metalness: 0.9 });
+            const rim = new THREE.Mesh(rimGeo, rimMat);
+            rim.position.y = 0.21;
+            rim.rotation.x = Math.PI / 2;
+            group.add(rim);
+
+            /* Liquid */
+            const liquidPts = [];
+            const liquidSegs = 20;
+            for (let i = 0; i <= liquidSegs; i++) {
+                const t = i / liquidSegs;
+                const y = t * 0.30;
+                const r = Math.max(0.001, 0.025 + Math.pow(t, 0.55) * 0.35);
+                liquidPts.push(new THREE.Vector2(r, y));
+            }
+            const liquidGeo = new THREE.LatheGeometry(liquidPts, 48);
+            const liquidMat = new THREE.MeshStandardMaterial({
+                color: col,
+                emissive: col,
+                emissiveIntensity: 0.35,
+                transparent: true,
+                opacity: 0.88,
+                roughness: 0.15,
+                metalness: 0.05,
+                side: THREE.DoubleSide,
+            });
+            const liquid = new THREE.Mesh(liquidGeo, liquidMat);
+            liquid.position.y = -0.12;
+            group.add(liquid);
+
+            /* Liquid top surface */
+            const topGeo = new THREE.CircleGeometry(0.34, 48);
+            const topMat = new THREE.MeshStandardMaterial({
+                color: col,
+                emissive: col,
+                emissiveIntensity: 0.25,
+                transparent: true,
+                opacity: 0.9,
+                side: THREE.DoubleSide,
+            });
+            const topSurface = new THREE.Mesh(topGeo, topMat);
+            topSurface.rotation.x = -Math.PI / 2;
+            topSurface.position.y = 0.18;
+            group.add(topSurface);
+
+            /* Stem */
+            const stemGeo = new THREE.CylinderGeometry(0.018, 0.022, 0.55, 12);
+            const stemMat = new THREE.MeshStandardMaterial({ color: 0xbbbbcc, roughness: 0.2, metalness: 0.85 });
+            const stem = new THREE.Mesh(stemGeo, stemMat);
+            stem.position.y = -0.42;
+            group.add(stem);
+
+            /* Base */
+            const baseGeo = new THREE.CylinderGeometry(0.14, 0.16, 0.02, 32);
+            const base = new THREE.Mesh(baseGeo, stemMat);
+            base.position.y = -0.69;
+            group.add(base);
+
+            /* Colored point light inside glass */
+            const ptLight = new THREE.PointLight(col, 3, 4);
+            ptLight.position.y = 0.05;
+            group.add(ptLight);
+
+            /* Colored glow beneath (subtle floor reflection) */
+            const glowLight = new THREE.PointLight(col, 1.5, 3);
+            glowLight.position.y = -0.8;
+            group.add(glowLight);
+
+            /* Garnish - small spheres on rim */
+            const garnishGeo = new THREE.SphereGeometry(0.028, 12, 12);
+            const garnishMat = new THREE.MeshStandardMaterial({
+                color: col,
+                emissive: col,
+                emissiveIntensity: 0.6,
+            });
+            for (let i = 0; i < 3; i++) {
+                const garnish = new THREE.Mesh(garnishGeo, garnishMat);
+                const a = (i / 3) * Math.PI * 2 + index;
+                garnish.position.set(Math.cos(a) * 0.34, 0.23, Math.sin(a) * 0.34);
+                group.add(garnish);
+            }
+
+            /* Bubbles */
+            const bubbleCount = 25;
+            const bubblePositions = new Float32Array(bubbleCount * 3);
+            const bubbleVelocities = [];
+            for (let i = 0; i < bubbleCount; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const r = Math.random() * 0.18;
+                bubblePositions[i * 3] = Math.cos(angle) * r;
+                bubblePositions[i * 3 + 1] = Math.random() * 0.28;
+                bubblePositions[i * 3 + 2] = Math.sin(angle) * r;
+                bubbleVelocities.push(0.003 + Math.random() * 0.006);
+            }
+            const bubbleGeo = new THREE.BufferGeometry();
+            bubbleGeo.setAttribute('position', new THREE.BufferAttribute(bubblePositions, 3));
+            const bubbleMat = new THREE.PointsMaterial({
+                color: 0xffffff,
+                size: 0.02,
+                transparent: true,
+                opacity: 0.7,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+            });
+            const bubbles = new THREE.Points(bubbleGeo, bubbleMat);
+            bubbles.position.y = -0.1;
+            group.add(bubbles);
+
+            /* Position the group */
+            group.position.set(data.posX, 0, 0);
+            group.userData = {
+                ...data,
+                index,
+                originalY: 0,
+                originalPosX: data.posX,
+                bubbles,
+                bubbleVelocities,
+                liquid,
+                topSurface,
+                ptLight,
+                glowLight,
+                bowl,
+            };
+
+            return group;
+        }
+
+        const cocktailGroups = [];
+        cocktailsData.forEach((data, i) => {
+            const glass = createCocktailGlass(data, i);
+            scene.add(glass);
+            cocktailGroups.push(glass);
+        });
+
+        /* ========== Ambient Particles ========== */
+        const pCount = 600;
+        const pGeo = new THREE.BufferGeometry();
+        const pPos = new Float32Array(pCount * 3);
+        const pSizes = new Float32Array(pCount);
+        for (let i = 0; i < pCount; i++) {
+            pPos[i * 3] = (Math.random() - 0.5) * 25;
+            pPos[i * 3 + 1] = (Math.random() - 0.5) * 15;
+            pPos[i * 3 + 2] = (Math.random() - 0.5) * 25;
+            pSizes[i] = Math.random() * 0.03 + 0.01;
+        }
+        pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+        const pMat = new THREE.PointsMaterial({
+            color: 0x00ff88,
+            size: 0.025,
+            transparent: true,
+            opacity: 0.35,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+        });
+        const ambientParticles = new THREE.Points(pGeo, pMat);
+        scene.add(ambientParticles);
+
+        /* ========== Floor Grid ========== */
+        const floorGeo = new THREE.PlaneGeometry(40, 40, 40, 40);
+        const floorMat = new THREE.MeshStandardMaterial({
+            color: 0x0a0a0f,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.06,
+        });
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = -0.72;
+        scene.add(floor);
+
+        /* ========== Post-Processing ========== */
+        const composer = new EffectComposer(renderer);
+        composer.addPass(new RenderPass(scene, camera));
+        const bloomPass = new UnrealBloomPass(
+            new THREE.Vector2(window.innerWidth, window.innerHeight),
+            0.7, 0.4, 0.8
+        );
+        composer.addPass(bloomPass);
+
+        /* ========== Raycaster ========== */
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2(-10, -10);
+        let hoveredIndex = -1;
+
+        function onPointerMove(e) {
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        }
+        window.addEventListener('pointermove', onPointerMove);
+
+        function onPointerClick(e) {
+            raycaster.setFromCamera(mouse, camera);
+            for (let i = 0; i < cocktailGroups.length; i++) {
+                const g = cocktailGroups[i];
+                const hits = raycaster.intersectObjects(g.children, true);
+                if (hits.length > 0) {
+                    showDetail(i);
+                    return;
+                }
+            }
+        }
+        window.addEventListener('click', onPointerClick);
+
+        /* ========== Detail Panel ========== */
+        const detailPanel = document.getElementById('detail-panel');
+        const detailOverlay = document.getElementById('detail-overlay');
+        const detailClose = document.getElementById('detail-close');
+        const detailBar = document.getElementById('detail-bar');
+        const detailName = document.getElementById('detail-name');
+        const detailIngredients = document.getElementById('detail-ingredients');
+        const detailPrice = document.getElementById('detail-price');
+        const detailOrderBtn = document.getElementById('detail-order-btn');
+
+        function showDetail(index) {
+            const c = cocktailsData[index];
+            detailBar.style.background = c.color;
+            detailName.textContent = c.name;
+            detailIngredients.textContent = c.ingredients;
+            detailPrice.style.color = c.color;
+            detailPrice.textContent = c.price;
+            detailPanel.classList.add('active');
+            detailOverlay.classList.add('active');
+        }
+
+        function hideDetail() {
+            detailPanel.classList.remove('active');
+            detailOverlay.classList.remove('active');
+        }
+
+        detailClose.addEventListener('click', hideDetail);
+        detailOverlay.addEventListener('click', hideDetail);
+
+        /* ========== Toast ========== */
+        const toast = document.getElementById('toast');
+        let toastTimer = null;
+        function showToast(msg) {
+            toast.textContent = msg;
+            toast.classList.add('show');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        /* ========== Order Buttons ========== */
+        function handleOrder(index) {
+            const c = cocktailsData[index];
+            const msg = encodeURIComponent(`Hi! I'd like to order a ${c.name} (${c.ingredients}) - ${c.price}`);
+            window.open(`https://wa.me/919980115255?text=${msg}`, '_blank');
+            showToast(`${c.name} - Opening WhatsApp...`);
+        }
+
+        document.querySelectorAll('.cocktail-order-sm').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                handleOrder(parseInt(btn.dataset.index));
+            });
+        });
+
+        detailOrderBtn.addEventListener('click', () => {
+            const name = detailName.textContent;
+            const idx = cocktailsData.findIndex(c => c.name === name);
+            if (idx >= 0) handleOrder(idx);
+        });
+
+        document.getElementById('cta-order').addEventListener('click', () => {
+            const msg = encodeURIComponent('Hi! I\'d like to order from SnabBuzz!');
+            window.open(`https://wa.me/919980115255?text=${msg}`, '_blank');
+            showToast('Opening WhatsApp...');
+        });
+
+        /* Card clicks open detail */
+        document.querySelectorAll('.cocktail-card').forEach(card => {
+            card.addEventListener('click', () => {
+                showDetail(parseInt(card.dataset.index));
+            });
+        });
+
+        /* ========== Animation Loop ========== */
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const t = clock.getElapsedTime();
+            const dt = Math.min(clock.getDelta(), 0.05);
+
+            /* Float and rotate cocktails */
+            cocktailGroups.forEach((group, i) => {
+                const offset = i * 1.4;
+                group.position.y = group.userData.originalY + Math.sin(t * 0.7 + offset) * 0.12;
+                group.rotation.y = t * 0.25 + i * 0.8;
+
+                /* Liquid wobble */
+                const liquid = group.userData.liquid;
+                if (liquid) {
+                    liquid.scale.x = 1 + Math.sin(t * 1.8 + offset) * 0.015;
+                    liquid.scale.z = 1 + Math.cos(t * 2.1 + offset) * 0.015;
+                }
+                const topS = group.userData.topSurface;
+                if (topS) {
+                    topS.scale.x = 1 + Math.sin(t * 1.8 + offset) * 0.015;
+                    topS.scale.y = 1 + Math.cos(t * 2.1 + offset) * 0.015;
+                }
+
+                /* Animate bubbles */
+                const bubbles = group.userData.bubbles;
+                const vels = group.userData.bubbleVelocities;
+                if (bubbles && vels) {
+                    const pos = bubbles.geometry.attributes.position;
+                    for (let j = 0; j < pos.count; j++) {
+                        pos.array[j * 3 + 1] += vels[j];
+                        if (pos.array[j * 3 + 1] > 0.3) {
+                            pos.array[j * 3 + 1] = 0;
+                            const angle = Math.random() * Math.PI * 2;
+                            const r = Math.random() * 0.18;
+                            pos.array[j * 3] = Math.cos(angle) * r;
+                            pos.array[j * 3 + 2] = Math.sin(angle) * r;
+                        }
+                    }
+                    pos.needsUpdate = true;
+                }
+            });
+
+            /* Hover detection */
+            raycaster.setFromCamera(mouse, camera);
+            let newHovered = -1;
+            for (let i = 0; i < cocktailGroups.length; i++) {
+                const hits = raycaster.intersectObjects(cocktailGroups[i].children, true);
+                if (hits.length > 0) {
+                    newHovered = i;
+                    break;
+                }
+            }
+            if (newHovered !== hoveredIndex) {
+                /* Reset previous */
+                if (hoveredIndex >= 0) {
+                    const prev = cocktailGroups[hoveredIndex];
+                    prev.userData.ptLight.intensity = 3;
+                    prev.userData.bowl.material.opacity = 0.18;
+                }
+                /* Highlight new */
+                if (newHovered >= 0) {
+                    const curr = cocktailGroups[newHovered];
+                    curr.userData.ptLight.intensity = 6;
+                    curr.userData.bowl.material.opacity = 0.28;
+                }
+                hoveredIndex = newHovered;
+                renderer.domElement.style.cursor = newHovered >= 0 ? 'pointer' : 'grab';
+            }
+
+            /* Animate ambient particles */
+            ambientParticles.rotation.y = t * 0.015;
+            ambientParticles.rotation.x = Math.sin(t * 0.01) * 0.05;
+            const pp = ambientParticles.geometry.attributes.position;
+            for (let i = 0; i < pp.count; i++) {
+                pp.array[i * 3 + 1] += 0.002;
+                if (pp.array[i * 3 + 1] > 8) pp.array[i * 3 + 1] = -8;
+            }
+            pp.needsUpdate = true;
+
+            /* Floor subtle pulse */
+            floor.material.opacity = 0.04 + Math.sin(t * 0.5) * 0.02;
+
+            controls.update();
+            composer.render();
+        }
+
+        animate();
+
+        /* ========== Resize ========== */
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        /* ========== Slow auto-rotate when hero not visible ========== */
+        const heroEl = document.getElementById('hero');
+        const heroObserver = new IntersectionObserver((entries) => {
+            entries.forEach(e => {
+                controls.autoRotateSpeed = e.isIntersecting ? 0.4 : 0.15;
+            });
+        }, { threshold: 0.3 });
+        heroObserver.observe(heroEl);
+    </script>
+</body>
+</html>
